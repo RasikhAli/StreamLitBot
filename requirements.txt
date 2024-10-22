@@ -11,4 +11,3 @@ pyttsx3
 twilio
 google-cloud-texttospeech
 gTTS
-pyaudio
