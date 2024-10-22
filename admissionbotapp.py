@@ -6,7 +6,8 @@ import faiss
 import re
 from langdetect import detect
 from deep_translator import GoogleTranslator
-import pyttsx3
+from gtts import gTTS  # Google Text-to-Speech
+import os  # For file handling
 import speech_recognition as sr
 from twilio.rest import Client  # For WhatsApp integration
 
@@ -19,10 +20,6 @@ TWILIO_WHATSAPP_NUMBER = ''
 admission_df = pd.read_csv('data/admission_queries_responses4.csv')
 admission_embeddings = np.load('data/admission_query_embeddings.npy')
 
-# Load the SentenceTransformer model for admission queries
-# model_path_admission = 'LLM/paraphrase-MiniLM-L6-v2'
-# model_admission = SentenceTransformer(model_path_admission)
-
 @st.cache_resource
 def load_model():
     return SentenceTransformer('paraphrase-MiniLM-L6-v2')
@@ -31,13 +28,6 @@ model_admission = load_model()
 
 # Load FAISS index for admission queries
 index_admission = faiss.read_index('data/admission_faiss.index')
-
-# Initialize the TTS engine (Text-to-Speech)
-engine = pyttsx3.init()
-
-# Set properties for voice
-engine.setProperty('rate', 150)  # Speed of speech
-engine.setProperty('volume', 1)  # Volume level
 
 # Function to clean text
 def clean_text(text):
@@ -104,6 +94,12 @@ if st.button('Submit Query'):
             for result in results:
                 st.write(f"Query: {result['query']}")
                 st.write(f"Response: {result['response']}")
+                # Convert the response to speech
+                tts = gTTS(text=result['response'], lang='en')
+                audio_file = f"response_{result['query']}.mp3"
+                tts.save(audio_file)
+                st.audio(audio_file)  # Play the audio
+
         else:
             st.write("No similar queries found.")
     else:
