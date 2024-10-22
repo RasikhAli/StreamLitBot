@@ -9,12 +9,6 @@ from deep_translator import GoogleTranslator
 from gtts import gTTS  # Google Text-to-Speech
 import os  # For file handling
 import speech_recognition as sr
-from twilio.rest import Client  # For WhatsApp integration
-
-# WhatsApp configurations
-TWILIO_SID = ''
-TWILIO_AUTH_TOKEN = ''
-TWILIO_WHATSAPP_NUMBER = ''
 
 # Load the admissions queries dataset and embeddings
 admission_df = pd.read_csv('data/admission_queries_responses4.csv')
@@ -70,63 +64,90 @@ def retrieve_similar_queries(query, model, index, df, k=5):
 # Streamlit UI
 st.title("Admission Query Chatbot")
 
-# User Input: Text Box
-query = st.text_input("Enter your query:")
+# Initialize the recognizer
+recognizer = sr.Recognizer()
 
-# Handle the query and provide results
-if st.button('Submit Query'):
-    if query:
-        lang = detect_language(query)
-        if lang == 'ar':
-            translated_query = GoogleTranslator(source='ar', target='en').translate(query)
-            results = retrieve_similar_queries(translated_query, model_admission, index_admission, admission_df, k=1)
-        elif lang == 'ur':
-            translated_query = GoogleTranslator(source='ur', target='en').translate(query)
-            results = retrieve_similar_queries(translated_query, model_admission, index_admission, admission_df, k=1)
-            for result in results:
-                result['response'] = GoogleTranslator(source='en', target='ur').translate(result['response'])
-        else:
-            results = retrieve_similar_queries(query, model_admission, index_admission, admission_df, k=1)
-        
-        # Display results
-        if results:
-            st.write("Here are the results:")
-            for result in results:
-                st.write(f"Query: {result['query']}")
-                st.write(f"Response: {result['response']}")
-                # Convert the response to speech
-                tts = gTTS(text=result['response'], lang='en')
-                audio_file = f"response_{result['query']}.mp3"
-                tts.save(audio_file)
-                st.audio(audio_file)  # Play the audio
-
-        else:
-            st.write("No similar queries found.")
-    else:
-        st.warning("Please enter a query.")
-
-# WhatsApp Integration
-st.write("Send the response via WhatsApp:")
-whatsapp_number = st.text_input("Enter your WhatsApp number (with country code):")
-
-if st.button('Send on WhatsApp'):
-    if whatsapp_number:
-        # Twilio API Call to Send WhatsApp message
-        client = Client(TWILIO_SID, TWILIO_AUTH_TOKEN)
+# Function to recognize speech
+def recognize_speech():
+    with sr.Microphone() as source:
+        st.write("Listening...")
+        audio = recognizer.listen(source)
         try:
-            # Example message to be sent (customize based on query results)
-            if results and len(results) > 0:
-                message_text = f"Assalam o Alaikum,\nYour query: {results[0]['query']}\nResponse: {results[0]['response']}\nJazakAllah, Allah Hafiz."
+            query = recognizer.recognize_google(audio)
+            st.success(f"You said: {query}")
+            return query
+        except sr.UnknownValueError:
+            st.error("Could not understand audio")
+        except sr.RequestError:
+            st.error("Could not request results from Google Speech Recognition service")
+    return None
+
+# Start/Stop conversation buttons
+if st.button("Start Conversation"):
+    while True:
+        # Recognize speech from the microphone
+        query = recognize_speech()
+        if query:
+            lang = detect_language(query)
+            if lang == 'ar':
+                translated_query = GoogleTranslator(source='ar', target='en').translate(query)
+                results = retrieve_similar_queries(translated_query, model_admission, index_admission, admission_df, k=1)
+            elif lang == 'ur':
+                translated_query = GoogleTranslator(source='ur', target='en').translate(query)
+                results = retrieve_similar_queries(translated_query, model_admission, index_admission, admission_df, k=1)
+                for result in results:
+                    result['response'] = GoogleTranslator(source='en', target='ur').translate(result['response'])
             else:
-                message_text = "No relevant response found. Please try a different query."
-                
-            message = client.messages.create(
-                body=message_text,
-                from_=TWILIO_WHATSAPP_NUMBER,
-                to=f'whatsapp:+{whatsapp_number}'
-            )
-            st.success(f"Message sent to {whatsapp_number}")
-        except Exception as e:
-            st.error(f"Failed to send WhatsApp message. Error: {e}")
-    else:
-        st.warning("Please enter your WhatsApp number.")
+                results = retrieve_similar_queries(query, model_admission, index_admission, admission_df, k=1)
+
+            # Display results
+            if results:
+                for result in results:
+                    st.write(f"Query: {result['query']}")
+                    st.write(f"Response: {result['response']}")
+                    # Convert the response to speech
+                    tts = gTTS(text=result['response'], lang='en')
+                    audio_file = f"response_{result['query']}.mp3"
+                    tts.save(audio_file)
+                    st.audio(audio_file)  # Play the audio
+
+            else:
+                st.write("No similar queries found.")
+
+        if st.button("End Conversation"):
+            st.write("Conversation ended.")
+            break
+
+else:
+    # User Input: Text Box (for manual queries)
+    query = st.text_input("Or, enter your query manually:")
+
+    # Handle the query and provide results
+    if st.button('Submit Query'):
+        if query:
+            lang = detect_language(query)
+            if lang == 'ar':
+                translated_query = GoogleTranslator(source='ar', target='en').translate(query)
+                results = retrieve_similar_queries(translated_query, model_admission, index_admission, admission_df, k=1)
+            elif lang == 'ur':
+                translated_query = GoogleTranslator(source='ur', target='en').translate(query)
+                results = retrieve_similar_queries(translated_query, model_admission, index_admission, admission_df, k=1)
+                for result in results:
+                    result['response'] = GoogleTranslator(source='en', target='ur').translate(result['response'])
+            else:
+                results = retrieve_similar_queries(query, model_admission, index_admission, admission_df, k=1)
+
+            # Display results
+            if results:
+                for result in results:
+                    st.write(f"Query: {result['query']}")
+                    st.write(f"Response: {result['response']}")
+                    # Convert the response to speech
+                    tts = gTTS(text=result['response'], lang='en')
+                    audio_file = f"response_{result['query']}.mp3"
+                    tts.save(audio_file)
+                    st.audio(audio_file)  # Play the audio
+            else:
+                st.write("No similar queries found.")
+        else:
+            st.warning("Please enter a query.")
