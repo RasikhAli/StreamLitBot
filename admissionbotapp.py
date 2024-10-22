@@ -20,8 +20,14 @@ admission_df = pd.read_csv('data/admission_queries_responses4.csv')
 admission_embeddings = np.load('data/admission_query_embeddings.npy')
 
 # Load the SentenceTransformer model for admission queries
-model_path_admission = 'LLM/paraphrase-MiniLM-L6-v2'
-model_admission = SentenceTransformer(model_path_admission)
+# model_path_admission = 'LLM/paraphrase-MiniLM-L6-v2'
+# model_admission = SentenceTransformer(model_path_admission)
+
+@st.cache_resource
+def load_model():
+    return SentenceTransformer('paraphrase-MiniLM-L6-v2')
+
+model_admission = load_model()
 
 # Load FAISS index for admission queries
 index_admission = faiss.read_index('data/admission_faiss.index')
